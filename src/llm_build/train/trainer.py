@@ -81,18 +81,23 @@ def train_loop(
     n_params = sum(p.numel() for p in model.parameters())
     batches_per_epoch = len(train_loader) if hasattr(train_loader, "__len__") else None
     eff_batch = cfg.train.micro_batch * cfg.train.grad_accum
+    ssm_scan = getattr(cfg.model, "ssm_scan", "parallel")
     print(
         f"Training on {device} | max_steps={cfg.train.max_steps} | "
         f"micro_batch={cfg.train.micro_batch} grad_accum={cfg.train.grad_accum} "
         f"(effective {eff_batch} seqs/step) | seq_len={cfg.train.seq_len} | "
-        f"params={n_params/1e6:.1f}M | AMP={use_amp}"
+        f"params={n_params/1e6:.1f}M | AMP={use_amp} | ssm_scan={ssm_scan}"
     )
     if batches_per_epoch is not None:
         print(f"Train loader: {batches_per_epoch} micro-batches per epoch")
+    print(
+        f"Each optimizer step = {cfg.train.grad_accum} micro-batches "
+        f"(bar stays at 0% until all {cfg.train.grad_accum} finish)."
+    )
     if device.type == "mps":
         print(
-            "Note: first optimizer step on MPS can take several minutes "
-            "(reference Mamba scan + 20 layers). Progress bar updates after each step."
+            "MPS: first micro-batch (144M params × 1024 tokens × 20 layers) "
+            "often takes 5–15+ minutes; watch for 'micro k/N done' lines below."
         )
 
     step = 0
@@ -102,13 +107,11 @@ def train_loop(
     last_step_time = time.perf_counter()
     tokens_per_step = cfg.train.micro_batch * cfg.train.seq_len * cfg.train.grad_accum
     pbar = tqdm(total=cfg.train.max_steps, desc="train", unit="step", dynamic_ncols=True)
-    first_micro = True
-
     while step < cfg.train.max_steps:
         for batch in train_loader:
-            if first_micro:
-                tqdm.write("Running first forward/backward (grad accumulation in progress)...")
-                first_micro = False
+            micro_in_step = (micro_step % cfg.train.grad_accum) + 1
+            pbar.set_description(f"train (micro {micro_in_step}/{cfg.train.grad_accum})")
+            t_micro = time.perf_counter()
             input_ids = batch["input_ids"].to(device)
             labels = batch["labels"].to(device)
             with torch.autocast(device_type=device.type, enabled=use_amp):
@@ -116,6 +119,11 @@ def train_loop(
                 loss = loss / cfg.train.grad_accum
             loss.backward()
             micro_step += 1
+            micro_secs = time.perf_counter() - t_micro
+            tqdm.write(
+                f"micro {micro_in_step}/{cfg.train.grad_accum} done in {micro_secs:.1f}s "
+                f"(loss_chunk={loss.item() * cfg.train.grad_accum:.4f})"
+            )
             accum_pos = micro_step % cfg.train.grad_accum
             if accum_pos != 0:
                 pbar.set_postfix(accum=f"{accum_pos}/{cfg.train.grad_accum}", refresh=True)

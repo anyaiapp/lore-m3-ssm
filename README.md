@@ -16,7 +16,7 @@ Hyperparameters for the main experiment live in **`configs/experiment_100mb.yaml
 | Layer schedule | `mamba3_5to1` — **GQA attention** at 1-based layers **5, 11, 17**; **Mamba-3 blocks** elsewhere |
 | Width | `d_model=512`, SwiGLU MLP (`mlp_ratio=2.875`) |
 | Attention | 8 query heads, 2 KV heads, `head_dim=64`, RoPE, QK-norm, causal **sliding window 512** |
-| SSM | `d_state=128`, expand 2, post-gate RMSNorm; **PyTorch reference scan** (`ssm_backend: pytorch`, MPS-safe) |
+| SSM | `d_state=128`, expand 2, post-gate RMSNorm; **`ssm_scan: parallel`** (prefix scan, no per-step Python loop) |
 | Embeddings | Tied input / LM head |
 | Context | `max_seq_len=1024` (training `seq_len` matches config) |
 
@@ -32,6 +32,18 @@ Hyperparameters for the main experiment live in **`configs/experiment_100mb.yaml
 ```
 
 **Inference:** `LoreM3.generate()` (full-sequence forward; optional wrapper in `src/llm_build/inference/generate.py`). KV/SSM caches are not implemented yet.
+
+### Realistic goals vs “big” LLMs
+
+Lore-M3 is a **small, trainable-from-scratch** hybrid (~tens of millions of parameters at `d_model=512`), not a replacement for GPT‑class models trained on trillions of tokens and huge compute.
+
+| Dimension | Where Lore-M3 can win (at similar **size** and **hardware**) | What it will **not** beat frontier models on (today) |
+|-----------|----------------------------------------------------------------|-----------------------------------------------------|
+| **Speed / memory** | Long-context **inference** and training FLOPs: mostly SSM layers, GQA, sliding window; parallel SSM scan for all data sizes | Raw quality vs 70B+ models on open-ended reasoning |
+| **Accuracy** | Your **domain** after **large SFT** (Step 13, multi‑GB JSONL, enough steps) | Zero-shot breadth of models trained on internet-scale data |
+| **Performance** | Tokens/sec on Mac/CUDA at 512–4k context once caches land | Leaderboard SOTA without scale, data, and tuning budget |
+
+**To maximize quality and throughput in this repo:** (1) complete Step 13 streaming on full JSONL, (2) train long enough with stable loss, (3) use `ssm_scan: parallel` (default), (4) scale `d_model` / data in `scale_1gb.yaml`, (5) add KV/SSM incremental decode for real inference speedups. Beating “big LLMs” in **both** accuracy and speed globally is a **research + scale** problem, not a config toggle.
 
 ---
 
@@ -229,7 +241,18 @@ MLFLOW_DISABLE_AGENT_HINT=1 .venv/bin/python3.14 scripts/train.py --config confi
 
 Default training: `micro_batch=4`, `grad_accum=8`, AMP on MPS when available. Checkpoints every 500 steps.
 
-**Performance note:** The reference Mamba scan loops over sequence length in Python; full 20×1024 steps on MPS are **slow**. Expect long wall-clock time; use `configs/smoke_train.yaml` for a quick pipeline check, or lower `max_steps` for a sanity run.
+**Performance note:** Training is **slow on MPS** with the default config—not because of the 100 MB shard size, but because **17 Mamba layers** each run a **sequential scan over `seq_len` (1024)** in pure PyTorch, and `grad_accum: 8` runs **8 full forwards/backwards** per optimizer step. A single step can take many minutes.
+
+**Faster 100 MB run (recommended on Mac):** use half context and separate token bins:
+
+```bash
+.venv/bin/python3.14 scripts/preprocess_tokens.py --config configs/experiment_100mb_fast.yaml
+MLFLOW_DISABLE_AGENT_HINT=1 .venv/bin/python3.14 scripts/train.py --config configs/experiment_100mb_fast.yaml
+```
+
+(`seq_len=512`, `tokens_dir=artifacts/tokens_512`—same shard and tokenizer as the main experiment.)
+
+For a **pipeline check only**, use `configs/smoke_train.yaml` (4 layers, 16 steps). For **full-quality** training, expect long wall-clock time or use a CUDA machine with fused Mamba kernels later.
 
 **Gate:** Loss decreases over first hundreds of steps; `latest/checkpoint.pt` loads without shape errors.
 
@@ -327,7 +350,7 @@ After the experiment tokenizer exists, train on large JSONL **without** building
 |-------|-------------|
 | NaN loss | Set `train.amp: false` in YAML or train Mamba scan in fp32 |
 | OOM | Lower `micro_batch` or `seq_len` |
-| Very slow steps | Expected with `ssm_backend: pytorch`; use `smoke_train.yaml` to verify the pipeline first |
+| Very slow steps | Not the 100 MB data—it's Mamba scan × 1024 × 17 layers × `grad_accum` on MPS. Try `experiment_100mb_fast.yaml` (512 context) or `smoke_train.yaml` first |
 | Wrong eval architecture | Match `--config` to the checkpoint (smoke vs `experiment_100mb`) |
 
 ---

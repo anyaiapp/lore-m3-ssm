@@ -9,6 +9,7 @@ model:
 train:
   max_steps: 100000
   mlflow_experiment: lore-m3-scale-1gb
+  num_workers: 2
 
 data:
   shard: null

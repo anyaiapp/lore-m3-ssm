@@ -70,4 +70,11 @@ def build_streaming_loader(cfg: Config) -> DataLoader:
         max_chars_per_example=cfg.data.max_chars_per_example,
         seed=cfg.train.seed,
     )
-    return DataLoader(ds, batch_size=cfg.train.micro_batch, num_workers=0)
+    workers = getattr(cfg.train, "num_workers", 0)
+    return DataLoader(
+        ds,
+        batch_size=cfg.train.micro_batch,
+        num_workers=workers,
+        prefetch_factor=2 if workers > 0 else None,
+        persistent_workers=workers > 0,
+    )

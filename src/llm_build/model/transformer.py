@@ -34,6 +34,25 @@ class CausalSelfAttention(nn.Module):
         self.q_norm = RMSNorm(head_dim) if qk_norm else nn.Identity()
         self.k_norm = RMSNorm(head_dim) if qk_norm else nn.Identity()
         self.rope = RotaryEmbedding(head_dim, max_seq_len)
+        self._cached_mask_key: tuple[int, int, torch.device] | None = None
+        self._cached_attn_mask: torch.Tensor | None = None
+
+    def _sliding_mask(self, t: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor | None:
+        if self.attn_window is None or t <= 1:
+            return None
+        win = min(self.attn_window, t)
+        key = (t, win, device)
+        if self._cached_mask_key == key and self._cached_attn_mask is not None:
+            return self._cached_attn_mask.to(dtype=dtype)
+        rows = torch.arange(t, device=device)
+        cols = torch.arange(t, device=device)
+        dist = rows.unsqueeze(1) - cols.unsqueeze(0)
+        allowed = (dist >= 0) & (dist < win)
+        mask = torch.zeros(t, t, device=device, dtype=dtype)
+        mask.masked_fill_(~allowed, float("-inf"))
+        self._cached_mask_key = key
+        self._cached_attn_mask = mask
+        return mask
 
     def _repeat_kv(self, x: torch.Tensor) -> torch.Tensor:
         if self.n_kv_heads == self.n_heads:
@@ -57,11 +76,13 @@ class CausalSelfAttention(nn.Module):
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
+        attn_mask = self._sliding_mask(t, x.device, q.dtype)
         out = F.scaled_dot_product_attention(
             q,
             k,
             v,
-            is_causal=True,
+            attn_mask=attn_mask,
+            is_causal=attn_mask is None,
             dropout_p=0.0,
         )
         out = out.transpose(1, 2).contiguous().view(b, t, self.n_heads * self.head_dim)

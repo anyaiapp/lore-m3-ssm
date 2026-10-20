@@ -1,0 +1,17 @@
+# Faster 100 MB experiment on Apple Silicon: half context, smaller effective batch.
+# Re-preprocess after changing seq_len:
+#   python scripts/preprocess_tokens.py --config configs/experiment_100mb_fast.yaml
+_base_: experiment_100mb.yaml
+
+model:
+  max_seq_len: 512
+
+train:
+  seq_len: 512
+  micro_batch: 2
+  grad_accum: 4
+  log_every: 10
+  save_every: 250
+
+paths:
+  tokens_dir: artifacts/tokens_512

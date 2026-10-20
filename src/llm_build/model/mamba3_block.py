@@ -12,6 +12,7 @@ from llm_build.model.norms import RMSNorm
 class Mamba3Block(nn.Module):
     def __init__(self, cfg):
         super().__init__()
+        self.cfg = cfg
         self.d_inner = cfg.d_model * cfg.expand
         self.norm1 = RMSNorm(cfg.d_model)
         self.in_proj = nn.Linear(cfg.d_model, self.d_inner * 2, bias=False)
@@ -38,7 +39,7 @@ class Mamba3Block(nn.Module):
         c = c + self.c_bias
         delta = self.dt_proj(u)
         a = self.a_log.unsqueeze(0).unsqueeze(0).expand_as(delta)
-        y = selective_scan(u, delta, a, b, c)
+        y = selective_scan(u, delta, a, b, c, mode=self.cfg.ssm_scan)
         y = y * F.silu(z)
         y = self.post_gate_norm(y)
         x = residual + self.out_proj(y)

@@ -33,10 +33,30 @@ def main() -> None:
             val_ds = MemmapTokenDataset(cfg.paths.tokens_dir, "val", seq_len=cfg.train.seq_len)
             val_loader = DataLoader(val_ds, batch_size=cfg.train.micro_batch, shuffle=False, drop_last=True)
     else:
+        meta_path = Path(cfg.paths.tokens_dir) / "meta.json"
+        if meta_path.exists():
+            import json
+
+            with meta_path.open() as f:
+                packed_seq = json.load(f).get("seq_len")
+            if packed_seq is not None and packed_seq != cfg.train.seq_len:
+                raise SystemExit(
+                    f"Token bins were packed with seq_len={packed_seq} but config has "
+                    f"train.seq_len={cfg.train.seq_len}. Re-run:\n"
+                    f"  python scripts/preprocess_tokens.py --config {args.config}"
+                )
         train_ds = MemmapTokenDataset(cfg.paths.tokens_dir, "train", seq_len=cfg.train.seq_len)
         val_ds = MemmapTokenDataset(cfg.paths.tokens_dir, "val", seq_len=cfg.train.seq_len)
-        train_loader = DataLoader(train_ds, batch_size=cfg.train.micro_batch, shuffle=True, drop_last=True)
-        val_loader = DataLoader(val_ds, batch_size=cfg.train.micro_batch, shuffle=False, drop_last=True)
+        nw = cfg.train.num_workers
+        kw = {"num_workers": nw, "persistent_workers": nw > 0}
+        if nw > 0:
+            kw["prefetch_factor"] = 2
+        train_loader = DataLoader(
+            train_ds, batch_size=cfg.train.micro_batch, shuffle=True, drop_last=True, **kw
+        )
+        val_loader = DataLoader(
+            val_ds, batch_size=cfg.train.micro_batch, shuffle=False, drop_last=True, **kw
+        )
 
     model = LoreM3(cfg.model, cfg.tokenizer.vocab_size)
     try:

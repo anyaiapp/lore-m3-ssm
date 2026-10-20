@@ -12,6 +12,7 @@ model:
   ssm: mamba3
   ssm_variant: siso
   ssm_backend: pytorch
+  ssm_scan: parallel
   mamba_post_gate_norm: true
   attention_pos: rope
   attn_window: 512

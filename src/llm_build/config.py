@@ -22,6 +22,7 @@ class ModelConfig:
     ssm: str = "mamba3"
     ssm_variant: str = "siso"
     ssm_backend: str = "pytorch"
+    ssm_scan: str = "parallel"  # parallel | sequential (debug)
     mamba_post_gate_norm: bool = True
     attention_pos: str = "rope"
     attn_window: int | None = 512
@@ -54,6 +55,7 @@ class TrainConfig:
     log_every: int = 50
     save_every: int = 500
     mlflow_experiment: str = "lore-m3-experiment-100mb"
+    num_workers: int = 0  # memmap: 0; streaming on Linux can use 2–4
 
 
 @dataclass
