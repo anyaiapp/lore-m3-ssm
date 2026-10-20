@@ -1,0 +1,12 @@
+torch
+torchvision
+tqdm
+pyyaml
+einops
+numpy
+tokenizers
+mlflow
+sentencepiece
+ipykernel
+jupyter
+pytest

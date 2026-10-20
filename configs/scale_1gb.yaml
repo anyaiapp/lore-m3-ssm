@@ -1,0 +1,18 @@
+_base_: experiment_100mb.yaml
+
+model:
+  d_model: 768
+  max_seq_len: 4096
+  ssm_variant: mimo
+  mimo_rank: 4
+
+train:
+  max_steps: 100000
+  mlflow_experiment: lore-m3-scale-1gb
+
+data:
+  shard: null
+  train_files:
+    - data/jsonl/openhermes2_5.jsonl
+    - data/jsonl/dolphin-r1-nonreasoning.jsonl
+  streaming: true

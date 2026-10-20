@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-build"
+version = "0.1.0"
+description = "Lore-M3 hybrid language model training"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "torch",
+  "tqdm",
+  "pyyaml",
+  "einops",
+  "numpy",
+  "tokenizers",
+  "mlflow",
+  "sentencepiece",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+ui = ["gradio>=4.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,18 @@
+_base_: experiment_100mb.yaml
+
+model:
+  n_layers: 4
+  d_model: 128
+  n_heads: 4
+  n_kv_heads: 2
+  head_dim: 32
+  d_state: 32
+
+train:
+  seq_len: 128
+  max_steps: 16
+  log_every: 2
+  save_every: 8
+  micro_batch: 2
+  grad_accum: 2
+  warmup_steps: 4

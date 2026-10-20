@@ -1,0 +1,39 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets / local env
+.env
+.env.*
+
+# Generated training outputs
+artifacts/
+
+# MLflow (local tracking)
+mlruns/
+mlflow.db
+mlartifacts/
+
+# Large raw datasets (place files here locally; see README)
+data/jsonl/*
+!data/jsonl/.gitkeep
