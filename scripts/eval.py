@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, Dataset
 from llm_build.config import load_config
 from llm_build.data.encode import batch_to_causal_labels, encode_record_with_mask
 from llm_build.data.memmap_dataset import MemmapTokenDataset
+from llm_build.data.hf_fetch import ensure_jsonl_file, resolve_data_path
 from llm_build.data.schema import iter_records
 from llm_build.data.tokenizer import TextTokenizer
 from llm_build.model.lore_m3 import LoreM3
@@ -64,8 +65,12 @@ def main() -> None:
     model.eval()
 
     if args.holdout:
+        holdout = cfg.data.eval_holdout
+        if resolve_data_path(holdout) is None:
+            ensure_jsonl_file(holdout)
+        holdout_path = resolve_data_path(holdout) or holdout
         ds = HoldoutJsonlDataset(
-            cfg.data.eval_holdout,
+            str(holdout_path),
             Path(cfg.paths.tokenizer_dir),
             cfg.train.seq_len,
         )

@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from llm_build.config import load_config
+from llm_build.data.hf_fetch import ensure_paths, resolve_train_files
 from llm_build.data.memmap_dataset import MemmapTokenDataset
 from llm_build.data.streaming_dataset import build_streaming_loader
 from llm_build.model.lore_m3 import LoreM3
@@ -21,6 +22,9 @@ def main() -> None:
     p.add_argument("--config", default="configs/experiment_100mb.yaml")
     args = p.parse_args()
     cfg = load_config(args.config)
+    if cfg.data.streaming and cfg.data.train_files:
+        ensure_paths(cfg.data.train_files, include_optional=False)
+        cfg.data.train_files = resolve_train_files(cfg.data.train_files)
     random.seed(cfg.train.seed)
     np.random.seed(cfg.train.seed)
     torch.manual_seed(cfg.train.seed)
@@ -48,7 +52,8 @@ def main() -> None:
         train_ds = MemmapTokenDataset(cfg.paths.tokens_dir, "train", seq_len=cfg.train.seq_len)
         val_ds = MemmapTokenDataset(cfg.paths.tokens_dir, "val", seq_len=cfg.train.seq_len)
         nw = cfg.train.num_workers
-        kw = {"num_workers": nw, "persistent_workers": nw > 0}
+        use_cuda = cfg.train.device == "cuda" and torch.cuda.is_available()
+        kw = {"num_workers": nw, "persistent_workers": nw > 0, "pin_memory": use_cuda}
         if nw > 0:
             kw["prefetch_factor"] = 2
         train_loader = DataLoader(
@@ -58,7 +63,11 @@ def main() -> None:
             val_ds, batch_size=cfg.train.micro_batch, shuffle=False, drop_last=True, **kw
         )
 
-    model = LoreM3(cfg.model, cfg.tokenizer.vocab_size)
+    model = LoreM3(
+        cfg.model,
+        cfg.tokenizer.vocab_size,
+        grad_checkpoint=cfg.train.grad_checkpoint,
+    )
     try:
         import mlflow
 

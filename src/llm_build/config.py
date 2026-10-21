@@ -21,8 +21,8 @@ class ModelConfig:
     mlp_ratio: float = 2.875
     ssm: str = "mamba3"
     ssm_variant: str = "siso"
-    ssm_backend: str = "pytorch"
-    ssm_scan: str = "parallel"  # parallel | sequential (debug)
+    ssm_backend: str = "pytorch"  # pytorch | auto | compiled (CUDA: torch.compile blocks)
+    ssm_scan: str = "auto"  # auto | triton | compiled | parallel | sequential
     mamba_post_gate_norm: bool = True
     attention_pos: str = "rope"
     attn_window: int | None = 512

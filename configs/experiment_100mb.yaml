@@ -12,7 +12,7 @@ model:
   ssm: mamba3
   ssm_variant: siso
   ssm_backend: pytorch
-  ssm_scan: parallel
+  ssm_scan: auto
   mamba_post_gate_norm: true
   attention_pos: rope
   attn_window: 512
@@ -25,7 +25,7 @@ tokenizer:
 train:
   micro_batch: 4
   seq_len: 1024
-  grad_accum: 8
+  grad_accum: 4
   lr: 3.0e-4
   warmup_steps: 200
   max_steps: 20000

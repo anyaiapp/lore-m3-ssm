@@ -8,6 +8,7 @@ from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
 
 from llm_build.config import load_config
 from llm_build.data.chat import format_record
+from llm_build.data.hf_fetch import ensure_paths, resolve_train_files
 from llm_build.data.schema import iter_records
 
 
@@ -36,7 +37,8 @@ def main() -> None:
     if cfg.data.shard:
         paths = [cfg.data.shard]
     elif cfg.data.train_files:
-        paths = cfg.data.train_files
+        ensure_paths(cfg.data.train_files, include_optional=False)
+        paths = resolve_train_files(cfg.data.train_files)
     else:
         raise SystemExit("Set data.shard or data.train_files in config")
     tokenizer.train_from_iterator(

@@ -11,10 +11,11 @@ from llm_build.model.norms import RMSNorm
 
 
 class LoreM3(nn.Module):
-    def __init__(self, cfg: ModelConfig, vocab_size: int):
+    def __init__(self, cfg: ModelConfig, vocab_size: int, grad_checkpoint: bool = False):
         super().__init__()
         self.cfg = cfg
         self.vocab_size = vocab_size
+        self.grad_checkpoint = grad_checkpoint
         self.embed = nn.Embedding(vocab_size, cfg.d_model)
         types = layer_types(cfg.n_layers, cfg.layer_schedule)
         self.layers = nn.ModuleList([LayerUnit(t, cfg) for t in types])
@@ -38,7 +39,12 @@ class LoreM3(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         x = self.embed(input_ids)
         for layer in self.layers:
-            x = layer(x)
+            if self.grad_checkpoint and self.training:
+                x = torch.utils.checkpoint.checkpoint(
+                    layer, x, use_reentrant=False
+                )
+            else:
+                x = layer(x)
         logits = self.lm_head(self.norm(x))
         loss = None
         if labels is not None:

@@ -39,7 +39,7 @@ class Mamba3Block(nn.Module):
         c = c + self.c_bias
         delta = self.dt_proj(u)
         a = self.a_log.unsqueeze(0).unsqueeze(0).expand_as(delta)
-        y = selective_scan(u, delta, a, b, c, mode=self.cfg.ssm_scan)
+        y = selective_scan(u, delta, a, b, c, mode=self.cfg.ssm_scan, device=u.device)
         y = y * F.silu(z)
         y = self.post_gate_norm(y)
         x = residual + self.out_proj(y)

@@ -5,7 +5,13 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 
 
-def build_optimizer(model: torch.nn.Module, lr: float, weight_decay: float) -> AdamW:
+def build_optimizer(
+    model: torch.nn.Module,
+    lr: float,
+    weight_decay: float,
+    *,
+    fused: bool = False,
+) -> AdamW:
     decay, no_decay = [], []
     for name, p in model.named_parameters():
         if not p.requires_grad:
@@ -18,7 +24,12 @@ def build_optimizer(model: torch.nn.Module, lr: float, weight_decay: float) -> A
         {"params": decay, "weight_decay": weight_decay},
         {"params": no_decay, "weight_decay": 0.0},
     ]
-    return AdamW(groups, lr=lr, betas=(0.9, 0.95), eps=1e-8)
+    kwargs: dict = {"lr": lr, "betas": (0.9, 0.95), "eps": 1e-8}
+    if fused:
+        kwargs["fused"] = True
+    else:
+        kwargs["foreach"] = True
+    return AdamW(groups, **kwargs)
 
 
 def build_scheduler(optimizer: AdamW, warmup_steps: int, max_steps: int) -> LambdaLR:

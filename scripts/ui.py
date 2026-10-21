@@ -22,9 +22,12 @@ def _load(config_path: str, checkpoint_dir: str) -> tuple[str, str, str, list[li
 
 
 def _chat(message: str, history: list, max_tokens: int, temperature: float) -> tuple[list, str]:
-    history = history or []
+    if not message.strip():
+        return history or [], ""
+    history = list(history or [])
     reply = _SESSION.chat(message, max_new_tokens=max_tokens, temperature=temperature)
-    history = history + [(message, reply)]
+    history.append({"role": "user", "content": message})
+    history.append({"role": "assistant", "content": reply})
     return history, ""
 
 
@@ -37,7 +40,7 @@ def _run_val() -> str:
 
 
 def build_demo() -> gr.Blocks:
-    with gr.Blocks(title="Lore-M3 Studio", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Lore-M3 Studio") as demo:
         gr.Markdown(
             "# Lore-M3 Studio\n"
             "Load a trained checkpoint, chat with the model, and inspect loss / validation."
@@ -45,12 +48,12 @@ def build_demo() -> gr.Blocks:
         with gr.Row():
             config_path = gr.Textbox(
                 label="Config YAML",
-                value="configs/experiment_100mb.yaml",
+                value="configs/smoke_train.yaml",
                 scale=2,
             )
             checkpoint_dir = gr.Textbox(
                 label="Checkpoint directory",
-                value="artifacts/checkpoints/lore-m3/latest",
+                value="artifacts/checkpoints/lore-m3-smoke/latest",
                 scale=2,
             )
             load_btn = gr.Button("Load model", variant="primary", scale=1)
@@ -113,7 +116,12 @@ def main() -> None:
     p.add_argument("--share", action="store_true", help="Create a public Gradio link")
     args = p.parse_args()
     demo = build_demo()
-    demo.launch(server_name=args.host, server_port=args.port, share=args.share)
+    demo.launch(
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
+        theme=gr.themes.Soft(),
+    )
 
 
 if __name__ == "__main__":

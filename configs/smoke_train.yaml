@@ -16,3 +16,7 @@ train:
   micro_batch: 2
   grad_accum: 2
   warmup_steps: 4
+
+paths:
+  tokens_dir: artifacts/tokens_smoke
+  checkpoint_dir: artifacts/checkpoints/lore-m3-smoke

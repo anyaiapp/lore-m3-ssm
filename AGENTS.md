@@ -15,6 +15,7 @@ Execute **Steps 1→12** in order from the plan. Pass each verify gate before co
 source .venv/bin/activate
 PIP_INDEX_URL=https://pypi.org/simple PIP_EXTRA_INDEX_URL= pip install -e ".[dev]"
 # Prefer `.venv/bin/python3.14` if `python` in the venv is broken (uv mixed installs).
+python scripts/download_data.py --config configs/experiment_100mb.yaml
 python scripts/make_experiment_shard.py --max-bytes 100000000
 python scripts/train_tokenizer.py --config configs/experiment_100mb.yaml
 python scripts/preprocess_tokens.py --config configs/experiment_100mb.yaml

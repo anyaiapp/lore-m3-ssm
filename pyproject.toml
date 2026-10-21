@@ -17,11 +17,13 @@ dependencies = [
   "tokenizers",
   "mlflow",
   "sentencepiece",
+  "huggingface_hub",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
 ui = ["gradio>=4.0"]
+cuda = ["triton>=2.1.0; platform_system=='Linux'", "triton>=2.1.0; platform_system=='Windows'"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

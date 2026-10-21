@@ -1,0 +1,14 @@
+# RTX 5070 (~12 GB): CUDA training profile for experiment_100mb shard/tokens.
+# Use after: make_experiment_shard, train_tokenizer, preprocess_tokens (same paths as experiment_100mb).
+_base_: experiment_100mb.yaml
+model:
+  ssm_backend: auto
+  ssm_scan: auto
+train:
+  device: cuda
+  micro_batch: 6
+  grad_accum: 4
+  grad_checkpoint: true
+  num_workers: 4
+paths:
+  checkpoint_dir: artifacts/checkpoints/lore-m3-cuda

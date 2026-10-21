@@ -12,6 +12,7 @@ from llm_build.config import Config
 from llm_build.model.lore_m3 import LoreM3
 from llm_build.train.metrics import append_metric
 from llm_build.train.optim import build_optimizer, build_scheduler
+from llm_build.train.runtime import apply_model_runtime_opts
 
 
 def resolve_device(name: str) -> torch.device:
@@ -73,20 +74,39 @@ def train_loop(
     val_loader: DataLoader | None = None,
 ) -> None:
     device = resolve_device(cfg.train.device)
+    if hasattr(torch, "set_float32_matmul_precision"):
+        torch.set_float32_matmul_precision("high")
+    if device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.benchmark = True
     model.to(device)
-    optimizer = build_optimizer(model, cfg.train.lr, cfg.train.weight_decay)
+    for line in apply_model_runtime_opts(model, cfg, device):
+        print(line)
+    optimizer = build_optimizer(
+        model,
+        cfg.train.lr,
+        cfg.train.weight_decay,
+        fused=device.type == "cuda",
+    )
     scheduler = build_scheduler(optimizer, cfg.train.warmup_steps, cfg.train.max_steps)
     use_amp = cfg.train.amp and device.type in ("cuda", "mps")
     ckpt_dir = Path(cfg.paths.checkpoint_dir)
     n_params = sum(p.numel() for p in model.parameters())
     batches_per_epoch = len(train_loader) if hasattr(train_loader, "__len__") else None
     eff_batch = cfg.train.micro_batch * cfg.train.grad_accum
-    ssm_scan = getattr(cfg.model, "ssm_scan", "parallel")
+    from llm_build.model.mamba3_ref import resolve_ssm_scan_mode
+
+    ssm_scan = resolve_ssm_scan_mode(
+        getattr(cfg.model, "ssm_scan", "auto"),
+        cfg.train.seq_len,
+        device,
+    )
     print(
         f"Training on {device} | max_steps={cfg.train.max_steps} | "
         f"micro_batch={cfg.train.micro_batch} grad_accum={cfg.train.grad_accum} "
         f"(effective {eff_batch} seqs/step) | seq_len={cfg.train.seq_len} | "
-        f"params={n_params/1e6:.1f}M | AMP={use_amp} | ssm_scan={ssm_scan}"
+        f"params={n_params/1e6:.1f}M | AMP={use_amp} | grad_ckpt={model.grad_checkpoint} | "
+        f"ssm_scan={cfg.model.ssm_scan}→{ssm_scan}"
     )
     if batches_per_epoch is not None:
         print(f"Train loader: {batches_per_epoch} micro-batches per epoch")
@@ -112,8 +132,8 @@ def train_loop(
             micro_in_step = (micro_step % cfg.train.grad_accum) + 1
             pbar.set_description(f"train (micro {micro_in_step}/{cfg.train.grad_accum})")
             t_micro = time.perf_counter()
-            input_ids = batch["input_ids"].to(device)
-            labels = batch["labels"].to(device)
+            input_ids = batch["input_ids"].to(device, non_blocking=device.type != "mps")
+            labels = batch["labels"].to(device, non_blocking=device.type != "mps")
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 _, loss = model(input_ids, labels)
                 loss = loss / cfg.train.grad_accum
