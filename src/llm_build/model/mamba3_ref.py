@@ -97,9 +97,9 @@ def selective_scan_compiled(
 def resolve_ssm_scan_mode(mode: str, seqlen: int, device: torch.device) -> str:
     if mode != "auto":
         return mode
-    # On MPS, parallel scan does huge (B,T,D) ops per level; sequential wins.
+    # MPS: parallel prefix is much faster than a Python T-loop through autograd (training).
     if device.type == "mps":
-        return "sequential"
+        return "parallel"
     if device.type == "cuda" and torch.cuda.is_available():
         from llm_build.model.mamba3_scan_triton import triton_scan_available
 

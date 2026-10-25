@@ -116,8 +116,8 @@ def train_loop(
     )
     if device.type == "mps":
         print(
-            "MPS: first micro-batch (144M params × 1024 tokens × 20 layers) "
-            "often takes 5–15+ minutes; watch for 'micro k/N done' lines below."
+            "MPS: first micro-batch compiles Metal kernels; later micro-batches are faster. "
+            "Use ssm_scan=auto (parallel prefix on MPS). Watch for 'micro k/N done' lines."
         )
 
     step = 0

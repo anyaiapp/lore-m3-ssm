@@ -17,11 +17,18 @@ from llm_build.train.trainer import resolve_device
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="configs/experiment_100mb_cuda.yaml")
+    p.add_argument("--config", default="configs/experiment_100mb.yaml")
     p.add_argument("--warmup", type=int, default=2)
     p.add_argument("--steps", type=int, default=5)
+    p.add_argument(
+        "--no-grad-checkpoint",
+        action="store_true",
+        help="Disable activation checkpointing (faster if memory allows)",
+    )
     args = p.parse_args()
     cfg = load_config(args.config)
+    if args.no_grad_checkpoint:
+        cfg.train.grad_checkpoint = False
     device = resolve_device(cfg.train.device)
     ds = MemmapTokenDataset(cfg.paths.tokens_dir, "train", seq_len=cfg.train.seq_len)
     loader = DataLoader(
@@ -58,7 +65,10 @@ def main() -> None:
     times = [one_step() for _ in range(args.steps)]
     avg = sum(times) / len(times)
     tok = cfg.train.micro_batch * cfg.train.seq_len * cfg.train.grad_accum
-    print(f"device={device} micro_batch={cfg.train.micro_batch} grad_accum={cfg.train.grad_accum}")
+    print(
+        f"device={device} micro_batch={cfg.train.micro_batch} grad_accum={cfg.train.grad_accum} "
+        f"grad_checkpoint={cfg.train.grad_checkpoint}"
+    )
     print(f"avg step: {avg:.2f}s | tok/s: {tok / avg:,.0f}")
 
 
